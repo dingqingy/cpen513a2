@@ -54,6 +54,13 @@ class Placer:
                 if self.state[i, j] != -1:
                     self.canvas.create_text(sizex * (j + 0.5), sizey * (i + 0.5), text=self.state[i, j], font=('Arial', 10))
 
+        for net in self.nets:
+            for k in range(len(net) - 1):
+                start_y, start_x = self.block_to_coordinates[net[k]]
+                end_y, end_x = self.block_to_coordinates[net[k + 1]]
+                # print('start: {}, end: {}'.format(start, end))
+                self.canvas.create_line(sizex * (start_x + 0.5), sizey * (start_y + 0.5), sizex * (end_x + 0.5), sizey * (end_y + 0.5), fill='blue')
+
     def showRandomPlacement(self):
         ''' Reset the GUI to initial state'''
         self.randomPlacement()
@@ -69,7 +76,7 @@ class Placer:
         # print(self.state)
         self.cost = self.evalTotalCost()
         self.cost_var.set([self.cost, np.sum(self.cost)])
-        return self.state
+        # return self.state
 
     def evalTotalCost(self):
         self.block2Coordinates()
