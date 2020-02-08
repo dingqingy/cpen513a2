@@ -104,34 +104,56 @@ class Placer:
         '''
         # print('state:')
         # print(self.state)
-        block_id1, block_id2 = pair
+        p1, p2 = pair # coordinate in numpy array
+        block_id1, block_id2 = self.state[tuple(p1)], self.state[tuple(p2)]
+        # print('block1 id', block_id1)
         proposed_cost = np.zeros(self.num_nets, dtype=np.int32)
         delta = 0
-        # print('block1 id', block_id1)
-        for net_id in self.blocks[block_id1]:
-            # skip delta evalution if both block belong to this net
-            if block_id2 not in self.nets[net_id]:
-                proposed = [block if block != block_id1 else block_id2 for block in self.nets[net_id]]
-                # print('proposed blocks')
-                # print(proposed)
-                # min_other, max_other = getBBox(self.block_to_coordinates[other_blocks, :])
-                # TODO: prune if 2 block belong to the same net
-                proposed_cost[net_id] = evalCost(self.block_to_coordinates[proposed, :])
-                delta += proposed_cost[net_id] - self.cost[net_id]
-                # print('proposed_cost for net {} is {}, current cost is {}, current delta is {}'.format(net_id, proposed_cost[net_id], self.cost[net_id], delta))
 
-        # print('block2 id', block_id2)
-        for net_id in self.blocks[block_id2]:
-            # avoid count the same net again
-            if net_id not in self.blocks[block_id1]:
-                proposed = [block if block != block_id2 else block_id1 for block in self.nets[net_id]]
-                # print('proposed blocks')
-                # print(proposed)
-                # min_other, max_other = getBBox(self.block_to_coordinates[other_blocks, :])
-                # TODO: prune evaluated nets?
-                proposed_cost[net_id] = evalCost(self.block_to_coordinates[proposed, :])
+        if block_id1 == -1 and block_id2 == -1:
+            print('This should never happen, sth is wrong')
+            assert(False)
+        
+        elif block_id2 == -1:
+            for net_id in self.blocks[block_id1]:
+                other = [block for block in self.nets[net_id] if block != block_id1]
+                proposed_cost[net_id] = evalCost(np.concatenate([p2.reshape(1, -1), self.block_to_coordinates[other, :]]))
                 delta += proposed_cost[net_id] - self.cost[net_id]
-                # print('proposed_cost for net {} is {}, current cost is {}, current delta is {}'.format(net_id, proposed_cost[net_id], self.cost[net_id], delta))
+        
+        elif block_id1 == -1:
+            for net_id in self.blocks[block_id2]:
+                other = [block for block in self.nets[net_id] if block != block_id2]
+                # print('p1 shape', p1.shape)
+                # print('other shape', self.block_to_coordinates[other, :].shape)
+                proposed_cost[net_id] = evalCost(np.concatenate([p1.reshape(1, -1), self.block_to_coordinates[other, :]]))
+                delta += proposed_cost[net_id] - self.cost[net_id]
+        
+        else:
+            for net_id in self.blocks[block_id1]:
+                # skip delta evalution if both block belong to this net
+                if block_id2 not in self.nets[net_id]:
+                    proposed = [block if block != block_id1 else block_id2 for block in self.nets[net_id]]
+                    # print('proposed blocks')
+                    # print(proposed)
+                    # min_other, max_other = getBBox(self.block_to_coordinates[other_blocks, :])
+                    # TODO: prune if 2 block belong to the same net
+                    proposed_cost[net_id] = evalCost(self.block_to_coordinates[proposed, :])
+                    delta += proposed_cost[net_id] - self.cost[net_id]
+                    # print('proposed_cost for net {} is {}, current cost is {}, current delta is {}'.format(net_id, proposed_cost[net_id], self.cost[net_id], delta))
+
+            # print('block2 id', block_id2)
+            for net_id in self.blocks[block_id2]:
+                # avoid count the same net again
+                if net_id not in self.blocks[block_id1]:
+                    proposed = [block if block != block_id2 else block_id1 for block in self.nets[net_id]]
+                    # print('proposed blocks')
+                    # print(proposed)
+                    # min_other, max_other = getBBox(self.block_to_coordinates[other_blocks, :])
+                    # TODO: prune evaluated nets?
+                    proposed_cost[net_id] = evalCost(self.block_to_coordinates[proposed, :])
+                    delta += proposed_cost[net_id] - self.cost[net_id]
+                    # print('proposed_cost for net {} is {}, current cost is {}, current delta is {}'.format(net_id, proposed_cost[net_id], self.cost[net_id], delta))
+
         # print('debug')
         # print('proposed_cost', proposed_cost)
         # print('cost', self.cost)
@@ -163,7 +185,9 @@ class Placer:
         while True:
             for _ in range(cooling_period):
                 # swap 2 random cooredinate
-                pair_to_swap = tuple(np.random.choice(self.num_blocks, 2, replace=False))
+                # pair_to_swap = tuple(np.random.choice(self.num_blocks, 2, replace=False))
+                # propose 2 coordinates instead of propose 2 blocks!
+                pair_to_swap = self.proposeTwoPoint()
 
                 proposed_cost, d_cost = self.evalDeltaCost(pair_to_swap)
 
@@ -171,22 +195,34 @@ class Placer:
 
                 if r < np.exp(-d_cost / temp):
                     # swap
-                    bid1, bid2 = pair_to_swap
-                    b1_coords = tuple(self.block_to_coordinates[bid1])
-                    b2_coords = tuple(self.block_to_coordinates[bid2])
-                    # print(bid1)
-                    # print(type(self.block_to_coordinates[bid1]))
-                    # update self.state and self.block_to_coordinates
-                    # print('before state swap')
-                    # print(self.state)
-                    self.state[b1_coords], self.state[b2_coords] = bid2, bid1
-                    # print('after state swap')
-                    # print(self.state)
-                    # print('before block 2 coordinates')
-                    # print(self.block_to_coordinates)
-                    self.block_to_coordinates[[bid1, bid2]] = self.block_to_coordinates[[bid2, bid1]]
-                    # print('after block 2 coordinates')
-                    # print(self.block_to_coordinates)
+                    b1_coords, b2_coords = pair_to_swap
+                    bid1, bid2 = self.state[tuple(b1_coords)], self.state[tuple(b2_coords)]
+                    if bid1 == -1 and bid2 == -1:
+                        print('sth is wrong!, now allow to swap 2 empty cells')
+                        assert(False)
+                    elif bid2 == -1:
+                        self.state[tuple(b1_coords)], self.state[tuple(b2_coords)] = -1, bid1
+                        self.block_to_coordinates[bid1] = b2_coords
+                    elif bid1 == -1:
+                        self.state[tuple(b1_coords)], self.state[tuple(b2_coords)] = bid2, -1
+                        self.block_to_coordinates[bid2] = b1_coords
+                    else:
+                        # bid1, bid2 = pair_to_swap
+                        # b1_coords = tuple(self.block_to_coordinates[bid1])
+                        # b2_coords = tuple(self.block_to_coordinates[bid2])
+                        # print(bid1)
+                        # print(type(self.block_to_coordinates[bid1]))
+                        # update self.state and self.block_to_coordinates
+                        # print('before state swap')
+                        # print(self.state)
+                        self.state[tuple(b1_coords)], self.state[tuple(b2_coords)] = bid2, bid1
+                        # print('after state swap')
+                        # print(self.state)
+                        # print('before block 2 coordinates')
+                        # print(self.block_to_coordinates)
+                        self.block_to_coordinates[[bid1, bid2]] = self.block_to_coordinates[[bid2, bid1]]
+                        # print('after block 2 coordinates')
+                        # print(self.block_to_coordinates)
                     # print('before cost')
                     # print(self.cost)
                     self.cost[proposed_cost > 0] = proposed_cost[proposed_cost > 0]
@@ -198,6 +234,23 @@ class Placer:
             if num_iter > max_iter:
                 print('Reach maximum number of iterations, exit!')
                 break
+
+    def proposeTwoPoint(self):
+        '''
+        Propose 2 unequal coordinates
+        Also make sure not produce 2 empty cells
+        '''
+        y_bound, x_bound = self.grid_size
+        while True:
+            x = np.random.randint(0, x_bound, 2)
+            y = np.random.randint(0, y_bound, 2)
+            xy = np.stack([y, x]).T
+            # xy = np.stack([x, y]).T
+            p1, p2 = xy[0], xy[1]
+            if (p1-p2).any(): # look at 2 different points
+                if self.state[tuple(p1)] != -1 or self.state[tuple(p2)] != -1: # at least one point is a block
+                    break
+        return p1, p2
 
 
 if __name__ == '__main__':
