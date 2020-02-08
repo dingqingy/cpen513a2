@@ -42,6 +42,10 @@ class Placer:
         self.random_button = ttk.Button(self.frame, text="Random Placement", command=self.showRandomPlacement)
         self.random_button.pack()
 
+        # Anneal
+        self.anneal_button = ttk.Button(self.frame, text="Anneal", command=self.annealWrapper)
+        self.anneal_button.pack()
+
         # current Cost
         self.cost_var = StringVar()
         self.cost_label = ttk.Label(self.frame, textvariable=self.cost_var)
@@ -82,7 +86,7 @@ class Placer:
         self.state = np.random.permutation(ordered).reshape(self.grid_size)
         # print(self.state)
         self.cost = self.evalTotalCost()
-        self.cost_var.set([self.cost, np.sum(self.cost)])
+        self.cost_var.set(np.sum(self.cost))
         # return self.state
 
     def evalTotalCost(self):
@@ -104,7 +108,7 @@ class Placer:
         '''
         # print('state:')
         # print(self.state)
-        p1, p2 = pair # coordinate in numpy array
+        p1, p2 = pair  # coordinate in numpy array
         block_id1, block_id2 = self.state[tuple(p1)], self.state[tuple(p2)]
         # print('block1 id', block_id1)
         proposed_cost = np.zeros(self.num_nets, dtype=np.int32)
@@ -113,13 +117,13 @@ class Placer:
         if block_id1 == -1 and block_id2 == -1:
             print('This should never happen, sth is wrong')
             assert(False)
-        
+
         elif block_id2 == -1:
             for net_id in self.blocks[block_id1]:
                 other = [block for block in self.nets[net_id] if block != block_id1]
                 proposed_cost[net_id] = evalCost(np.concatenate([p2.reshape(1, -1), self.block_to_coordinates[other, :]]))
                 delta += proposed_cost[net_id] - self.cost[net_id]
-        
+
         elif block_id1 == -1:
             for net_id in self.blocks[block_id2]:
                 other = [block for block in self.nets[net_id] if block != block_id2]
@@ -127,7 +131,7 @@ class Placer:
                 # print('other shape', self.block_to_coordinates[other, :].shape)
                 proposed_cost[net_id] = evalCost(np.concatenate([p1.reshape(1, -1), self.block_to_coordinates[other, :]]))
                 delta += proposed_cost[net_id] - self.cost[net_id]
-        
+
         else:
             for net_id in self.blocks[block_id1]:
                 # skip delta evalution if both block belong to this net
@@ -174,7 +178,12 @@ class Placer:
                 if current_cell != -1:
                     self.block_to_coordinates[current_cell] = (i, j)
 
-    def simulatedAnnealer(self, init_temperature=1000, cooling_period=100, max_iter=2000000, beta=0.9):
+    def annealWrapper(self):
+        self.simulatedAnnealer()
+        self.cost_var.set(np.sum(self.cost))
+        self.plot()
+
+    def simulatedAnnealer(self, init_temperature=1000, cooling_period=100, max_iter=2e6, early_stop_iter=2e4, beta=0.9):
         '''
         init_temperature: initial temperature
         cooling_period: num of iterations to decrease the temperature
@@ -182,6 +191,8 @@ class Placer:
         '''
         temp = init_temperature
         num_iter = 0
+        early_stop = 0
+        previous_best = np.iinfo(np.int32).max
         while True:
             for _ in range(cooling_period):
                 # swap 2 random cooredinate
@@ -196,15 +207,16 @@ class Placer:
                 if r < np.exp(-d_cost / temp):
                     # swap
                     b1_coords, b2_coords = pair_to_swap
-                    bid1, bid2 = self.state[tuple(b1_coords)], self.state[tuple(b2_coords)]
+                    p1, p2 = tuple(b1_coords), tuple(b2_coords)
+                    bid1, bid2 = self.state[p1], self.state[p2]
                     if bid1 == -1 and bid2 == -1:
-                        print('sth is wrong!, now allow to swap 2 empty cells')
+                        print('sth is wrong!, not allowed to swap 2 empty cells')
                         assert(False)
                     elif bid2 == -1:
-                        self.state[tuple(b1_coords)], self.state[tuple(b2_coords)] = -1, bid1
+                        self.state[p1], self.state[p2] = -1, bid1
                         self.block_to_coordinates[bid1] = b2_coords
                     elif bid1 == -1:
-                        self.state[tuple(b1_coords)], self.state[tuple(b2_coords)] = bid2, -1
+                        self.state[p1], self.state[p2] = bid2, -1
                         self.block_to_coordinates[bid2] = b1_coords
                     else:
                         # bid1, bid2 = pair_to_swap
@@ -215,7 +227,7 @@ class Placer:
                         # update self.state and self.block_to_coordinates
                         # print('before state swap')
                         # print(self.state)
-                        self.state[tuple(b1_coords)], self.state[tuple(b2_coords)] = bid2, bid1
+                        self.state[p1], self.state[p2] = bid2, bid1
                         # print('after state swap')
                         # print(self.state)
                         # print('before block 2 coordinates')
@@ -231,8 +243,16 @@ class Placer:
             temp *= beta
             num_iter += cooling_period
             print('current iteration {}, current cost {}'.format(num_iter, np.sum(self.cost)))
+            if np.sum(self.cost) < previous_best:
+                previous_best = np.sum(self.cost)
+                early_stop = 0
+            else:
+                early_stop += cooling_period
             if num_iter > max_iter:
                 print('Reach maximum number of iterations, exit!')
+                break
+            if early_stop > early_stop_iter:
+                print('Early stop!')
                 break
 
     def proposeTwoPoint(self):
@@ -247,8 +267,8 @@ class Placer:
             xy = np.stack([y, x]).T
             # xy = np.stack([x, y]).T
             p1, p2 = xy[0], xy[1]
-            if (p1-p2).any(): # look at 2 different points
-                if self.state[tuple(p1)] != -1 or self.state[tuple(p2)] != -1: # at least one point is a block
+            if (p1 - p2).any():  # look at 2 different points
+                if self.state[tuple(p1)] != -1 or self.state[tuple(p2)] != -1:  # at least one point is a block
                     break
         return p1, p2
 
@@ -259,6 +279,6 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     placer = Placer(args.infile)
-    placer.simulatedAnnealer()
-    placer.plot()
+    # placer.simulatedAnnealer()
+    # placer.plot()
     placer.root.mainloop()
