@@ -12,10 +12,10 @@ def parseInput(infile):
     '''
     with open(infile, 'r') as f:
         num_blocks, num_nets, ny, nx = tuple([int(x) for x in f.readline().rstrip('\n').split(' ')])
-        print(num_blocks)
-        print(num_nets)
-        print(ny)
-        print(nx)
+        # print(num_blocks)
+        # print(num_nets)
+        # print(ny)
+        # print(nx)
         nets = []
         for _ in range(num_nets):
             f.readline()  # skip empty line

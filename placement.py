@@ -242,7 +242,8 @@ class Placer:
                     # print(self.cost)
             temp *= beta
             num_iter += cooling_period
-            print('current iteration {}, current cost {}'.format(num_iter, np.sum(self.cost)))
+            if self.verbose:
+                print('current iteration {}, current cost {}'.format(num_iter, np.sum(self.cost)))
             if np.sum(self.cost) < previous_best:
                 previous_best = np.sum(self.cost)
                 early_stop = 0
@@ -278,7 +279,7 @@ if __name__ == '__main__':
     parser.add_argument('--infile', '-i', default='benchmarks/cm138a.txt', help='input file')  # yaml
     args = parser.parse_args()
 
-    placer = Placer(args.infile)
-    # placer.simulatedAnnealer()
+    placer = Placer(args.infile, verbose=True)
+    placer.simulatedAnnealer(init_temperature=1, cooling_period=100, early_stop_iter=2e3, beta=0.95)
     # placer.plot()
     placer.root.mainloop()
