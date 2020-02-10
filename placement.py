@@ -276,10 +276,13 @@ class Placer:
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='CPEN 513 Assignment 2: Placement')
-    parser.add_argument('--infile', '-i', default='benchmarks/cm138a.txt', help='input file')  # yaml
+    parser.add_argument('--infile', '-i', default='benchmarks/cm138a.txt', help='input file')
+    parser.add_argument('--temp_init', '-t', default=1, type=int, help='initial temperature')
+    parser.add_argument('--cooling_period', '-c', default=1, type=int, help='cooling period')
+    parser.add_argument('--beta', '-b', default=0.9, type=float, help='beta: control the speedup of temp reduce')
     args = parser.parse_args()
 
     placer = Placer(args.infile, verbose=True)
-    placer.simulatedAnnealer(init_temperature=1, cooling_period=100, early_stop_iter=2e3, beta=0.95)
+    placer.simulatedAnnealer(init_temperature=args.temp_init, cooling_period=args.cooling_period, early_stop_iter=2e3, beta=args.beta)
     # placer.plot()
     placer.root.mainloop()

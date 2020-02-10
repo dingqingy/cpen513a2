@@ -2,8 +2,8 @@ from placement import Placer
 import numpy as np
 
 all_benchmarks = [
-    'C880',
-    'alu2',
+    # 'C880',
+    # 'alu2',
     'apex1',
     'apex4',
     'cm138a',
