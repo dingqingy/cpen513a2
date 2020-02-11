@@ -1,4 +1,4 @@
-## CPEN 513 Assignment 1
+## CPEN 513 Assignment 2
 
 ### Report
 * [Report](a2_report.pdf)
