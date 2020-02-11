@@ -17,11 +17,16 @@ class Placer:
     self.block_to_coordinates: np array of shape (num_blocks * 2)
     '''
 
-    def __init__(self, infile, verbose=False):
-        self.verbose = verbose
+    def __init__(self, infile, init_temperature=1000, cooling_period=100, max_iter=5e6, early_stop_iter=2e4, beta=0.9, verbose=False):
         self.grid_size, self.num_blocks, self.num_nets, self.nets = parseInput(infile)
         self.blocks = block2Net(self.num_blocks, self.nets)
         self.cost = 0
+        self.init_temperature = init_temperature
+        self.cooling_period = cooling_period
+        self.max_iter=max_iter
+        self.early_stop_iter = early_stop_iter
+        self.beta = beta
+        self.verbose = verbose
 
         self.startGUI()
         self.randomPlacement()
@@ -184,18 +189,18 @@ class Placer:
         self.cost_var.set(np.sum(self.cost))
         self.plot()
 
-    def simulatedAnnealer(self, init_temperature=1000, cooling_period=100, max_iter=2e6, early_stop_iter=2e4, beta=0.9):
+    def simulatedAnnealer(self):
         '''
         init_temperature: initial temperature
         cooling_period: num of iterations to decrease the temperature
         beta: cooling coefficient
         '''
-        temp = init_temperature
+        temp = self.init_temperature
         num_iter = 0
         early_stop = 0
         previous_best = np.iinfo(np.int32).max
         while True:
-            for _ in range(cooling_period):
+            for _ in range(self.cooling_period):
                 # swap 2 random cooredinate
                 # pair_to_swap = tuple(np.random.choice(self.num_blocks, 2, replace=False))
                 # propose 2 coordinates instead of propose 2 blocks!
@@ -241,19 +246,19 @@ class Placer:
                     self.cost[proposed_cost > 0] = proposed_cost[proposed_cost > 0]
                     # print('after cost')
                     # print(self.cost)
-            temp *= beta
-            num_iter += cooling_period
+            temp *= self.beta
+            num_iter += self.cooling_period
             if self.verbose:
                 print('current iteration {}, current cost {}'.format(num_iter, np.sum(self.cost)))
             if np.sum(self.cost) < previous_best:
                 previous_best = np.sum(self.cost)
                 early_stop = 0
             else:
-                early_stop += cooling_period
-            if num_iter > max_iter:
+                early_stop += self.cooling_period
+            if num_iter > self.max_iter:
                 print('Reach maximum number of iterations, exit!')
                 break
-            if early_stop > early_stop_iter:
+            if early_stop > self.early_stop_iter:
                 print('Early stop!')
                 break
 
@@ -280,10 +285,18 @@ if __name__ == '__main__':
     parser.add_argument('--infile', '-i', default='benchmarks/cm138a.txt', help='input file')
     parser.add_argument('--temp_init', '-t', default=1, type=int, help='initial temperature')
     parser.add_argument('--cooling_period', '-c', default=1, type=int, help='cooling period')
+    parser.add_argument('--early_stop_iter', '-e', default=2e5, type=int, help='early stop')
+    parser.add_argument('--max_iter', '-m', default=5e6, type=int, help='max stop')
     parser.add_argument('--beta', '-b', default=0.9, type=float, help='beta: control the speedup of temp reduce')
     args = parser.parse_args()
 
-    placer = Placer(args.infile, verbose=True)
-    placer.simulatedAnnealer(init_temperature=args.temp_init, cooling_period=args.cooling_period, early_stop_iter=2e5, beta=args.beta)
-    placer.plot()
+    placer = Placer(args.infile, 
+                    init_temperature=args.temp_init, 
+                    cooling_period=args.cooling_period, 
+                    early_stop_iter=args.early_stop_iter, 
+                    max_iter=args.max_iter,
+                    beta=args.beta, 
+                    verbose=True)
+    # placer.simulatedAnnealer()
+    # placer.plot()
     placer.root.mainloop()
