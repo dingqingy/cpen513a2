@@ -71,6 +71,7 @@ class Placer:
                 end_y, end_x = self.block_to_coordinates[net[k + 1]]
                 # print('start: {}, end: {}'.format(start, end))
                 self.canvas.create_line(sizex * (start_x + 0.5), sizey * (start_y + 0.5), sizex * (end_x + 0.5), sizey * (end_y + 0.5), fill='blue')
+        self.cost_var.set(np.sum(self.cost))
 
     def showRandomPlacement(self):
         ''' Reset the GUI to initial state'''
@@ -86,7 +87,7 @@ class Placer:
         self.state = np.random.permutation(ordered).reshape(self.grid_size)
         # print(self.state)
         self.cost = self.evalTotalCost()
-        self.cost_var.set(np.sum(self.cost))
+        # self.cost_var.set(np.sum(self.cost))
         # return self.state
 
     def evalTotalCost(self):
@@ -283,6 +284,6 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     placer = Placer(args.infile, verbose=True)
-    placer.simulatedAnnealer(init_temperature=args.temp_init, cooling_period=args.cooling_period, early_stop_iter=2e3, beta=args.beta)
-    # placer.plot()
+    placer.simulatedAnnealer(init_temperature=args.temp_init, cooling_period=args.cooling_period, early_stop_iter=2e5, beta=args.beta)
+    placer.plot()
     placer.root.mainloop()
