@@ -12,10 +12,6 @@ def parseInput(infile):
     '''
     with open(infile, 'r') as f:
         num_blocks, num_nets, ny, nx = tuple([int(x) for x in f.readline().rstrip('\n').split(' ')])
-        # print(num_blocks)
-        # print(num_nets)
-        # print(ny)
-        # print(nx)
         nets = []
         for _ in range(num_nets):
             f.readline()  # skip empty line
@@ -37,22 +33,6 @@ def block2Net(num_blocks, nets):
         blocks.append(block)
     return blocks
 
-
-# def evalDeltaCost(old, new):
-#     '''
-#     old on the boundary, reevaluate the boundary
-#     else, see if new become new boundary
-#     '''
-#     old_min = old.min(axis=0)
-#     old_max = old.max(axis=0)
-#     print('old min: {}, old max: {}'.format(old_min, old_max))
-#     new_min = new.min(axis=0)
-#     new_max = new.max(axis=0)
-#     print('new min: {}, new max: {}'.format(new_min, new_max))
-
-#     old_cost = np.sum(old_max - old_min)
-#     new_cost = np.sum(new_max - new_min)
-#     return new_cost - old_cost
 
 def getBBox(input):
     '''

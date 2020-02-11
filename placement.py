@@ -74,7 +74,6 @@ class Placer:
             for k in range(len(net) - 1):
                 start_y, start_x = self.block_to_coordinates[net[k]]
                 end_y, end_x = self.block_to_coordinates[net[k + 1]]
-                # print('start: {}, end: {}'.format(start, end))
                 self.canvas.create_line(sizex * (start_x + 0.5), sizey * (start_y + 0.5), sizex * (end_x + 0.5), sizey * (end_y + 0.5), fill='blue')
         self.cost_var.set(np.sum(self.cost))
 
@@ -82,7 +81,6 @@ class Placer:
         ''' Reset the GUI to initial state'''
         self.randomPlacement()
         self.plot()
-        # print('reset')
 
     def randomPlacement(self):
         ''' random placement'''
@@ -90,20 +88,14 @@ class Placer:
         ordered = np.concatenate([np.arange(self.num_blocks), -1 * np.ones(np.prod(self.grid_size) - self.num_blocks, dtype=np.int32)])
         # random shuffling
         self.state = np.random.permutation(ordered).reshape(self.grid_size)
-        # print(self.state)
         self.cost = self.evalTotalCost()
-        # self.cost_var.set(np.sum(self.cost))
-        # return self.state
 
     def evalTotalCost(self):
         self.block2Coordinates()
-        # print(self.block_to_coordinates)
         cost = np.zeros(self.num_nets, dtype=np.int32)
         for i in range(self.num_nets):
-            # print(self.nets[i])
             cost[i] = evalCost(self.block_to_coordinates[self.nets[i], :])
-        # print('cost of each net', cost)
-        # print('current total cost', np.sum(cost))
+
         return cost
 
     def evalDeltaCost(self, pair):
@@ -112,11 +104,8 @@ class Placer:
         Compare cost between stacked(min_other, max_other, new) and stacked(min_other, max_other, old)
         BTW, is the old net cost available?
         '''
-        # print('state:')
-        # print(self.state)
         p1, p2 = pair  # coordinate in numpy array
         block_id1, block_id2 = self.state[tuple(p1)], self.state[tuple(p2)]
-        # print('block1 id', block_id1)
         proposed_cost = np.zeros(self.num_nets, dtype=np.int32)
         delta = 0
 
@@ -124,53 +113,41 @@ class Placer:
             print('This should never happen, sth is wrong')
             assert(False)
 
+        # swap one block with an empty cell
         elif block_id2 == -1:
             for net_id in self.blocks[block_id1]:
                 other = [block for block in self.nets[net_id] if block != block_id1]
                 proposed_cost[net_id] = evalCost(np.concatenate([p2.reshape(1, -1), self.block_to_coordinates[other, :]]))
                 delta += proposed_cost[net_id] - self.cost[net_id]
 
+        # swap one block with an empty cell
         elif block_id1 == -1:
             for net_id in self.blocks[block_id2]:
                 other = [block for block in self.nets[net_id] if block != block_id2]
-                # print('p1 shape', p1.shape)
-                # print('other shape', self.block_to_coordinates[other, :].shape)
+
                 proposed_cost[net_id] = evalCost(np.concatenate([p1.reshape(1, -1), self.block_to_coordinates[other, :]]))
                 delta += proposed_cost[net_id] - self.cost[net_id]
 
+        # swap 2 blocks
         else:
+            # evaluate all nets related to the first block
             for net_id in self.blocks[block_id1]:
                 # skip delta evalution if both block belong to this net
                 if block_id2 not in self.nets[net_id]:
                     proposed = [block if block != block_id1 else block_id2 for block in self.nets[net_id]]
-                    # print('proposed blocks')
-                    # print(proposed)
-                    # min_other, max_other = getBBox(self.block_to_coordinates[other_blocks, :])
-                    # TODO: prune if 2 block belong to the same net
+
                     proposed_cost[net_id] = evalCost(self.block_to_coordinates[proposed, :])
                     delta += proposed_cost[net_id] - self.cost[net_id]
-                    # print('proposed_cost for net {} is {}, current cost is {}, current delta is {}'.format(net_id, proposed_cost[net_id], self.cost[net_id], delta))
 
-            # print('block2 id', block_id2)
+            # evaluate all nets related to the second block
             for net_id in self.blocks[block_id2]:
                 # avoid count the same net again
                 if net_id not in self.blocks[block_id1]:
                     proposed = [block if block != block_id2 else block_id1 for block in self.nets[net_id]]
-                    # print('proposed blocks')
-                    # print(proposed)
-                    # min_other, max_other = getBBox(self.block_to_coordinates[other_blocks, :])
-                    # TODO: prune evaluated nets?
+                    
                     proposed_cost[net_id] = evalCost(self.block_to_coordinates[proposed, :])
                     delta += proposed_cost[net_id] - self.cost[net_id]
-                    # print('proposed_cost for net {} is {}, current cost is {}, current delta is {}'.format(net_id, proposed_cost[net_id], self.cost[net_id], delta))
 
-        # print('debug')
-        # print('proposed_cost', proposed_cost)
-        # print('cost', self.cost)
-        # print('selected cost', self.cost[proposed_cost > 0])
-        # print('sum selected cost', np.sum(self.cost[proposed_cost > 0]))
-        # print('delta', delta)
-        # print((np.sum(proposed_cost) - np.sum(self.cost[proposed_cost > 0]) - delta))
         assert((np.sum(proposed_cost) - np.sum(self.cost[proposed_cost > 0]) - delta) < epsilon)
         return proposed_cost, delta
 
@@ -201,8 +178,6 @@ class Placer:
         previous_best = np.iinfo(np.int32).max
         while True:
             for _ in range(self.cooling_period):
-                # swap 2 random cooredinate
-                # pair_to_swap = tuple(np.random.choice(self.num_blocks, 2, replace=False))
                 # propose 2 coordinates instead of propose 2 blocks!
                 pair_to_swap = self.proposeTwoPoint()
 
@@ -218,34 +193,20 @@ class Placer:
                     if bid1 == -1 and bid2 == -1:
                         print('sth is wrong!, not allowed to swap 2 empty cells')
                         assert(False)
+                    # block 2 is an empty cell
                     elif bid2 == -1:
                         self.state[p1], self.state[p2] = -1, bid1
                         self.block_to_coordinates[bid1] = b2_coords
+                    # block 2 is an empty cell
                     elif bid1 == -1:
                         self.state[p1], self.state[p2] = bid2, -1
                         self.block_to_coordinates[bid2] = b1_coords
                     else:
-                        # bid1, bid2 = pair_to_swap
-                        # b1_coords = tuple(self.block_to_coordinates[bid1])
-                        # b2_coords = tuple(self.block_to_coordinates[bid2])
-                        # print(bid1)
-                        # print(type(self.block_to_coordinates[bid1]))
-                        # update self.state and self.block_to_coordinates
-                        # print('before state swap')
-                        # print(self.state)
                         self.state[p1], self.state[p2] = bid2, bid1
-                        # print('after state swap')
-                        # print(self.state)
-                        # print('before block 2 coordinates')
-                        # print(self.block_to_coordinates)
                         self.block_to_coordinates[[bid1, bid2]] = self.block_to_coordinates[[bid2, bid1]]
-                        # print('after block 2 coordinates')
-                        # print(self.block_to_coordinates)
-                    # print('before cost')
-                    # print(self.cost)
+
                     self.cost[proposed_cost > 0] = proposed_cost[proposed_cost > 0]
-                    # print('after cost')
-                    # print(self.cost)
+
             temp *= self.beta
             num_iter += self.cooling_period
             if self.verbose:
@@ -285,8 +246,8 @@ if __name__ == '__main__':
     parser.add_argument('--infile', '-i', default='benchmarks/cm138a.txt', help='input file')
     parser.add_argument('--temp_init', '-t', default=1, type=int, help='initial temperature')
     parser.add_argument('--cooling_period', '-c', default=1, type=int, help='cooling period')
-    parser.add_argument('--early_stop_iter', '-e', default=2e5, type=int, help='early stop')
-    parser.add_argument('--max_iter', '-m', default=5e6, type=int, help='max stop')
+    parser.add_argument('--early_stop_iter', '-e', default=200000, type=int, help='early stop')
+    parser.add_argument('--max_iter', '-m', default=5000000, type=int, help='max stop')
     parser.add_argument('--beta', '-b', default=0.9, type=float, help='beta: control the speedup of temp reduce')
     args = parser.parse_args()
 
@@ -297,6 +258,4 @@ if __name__ == '__main__':
                     max_iter=args.max_iter,
                     beta=args.beta, 
                     verbose=True)
-    # placer.simulatedAnnealer()
-    # placer.plot()
     placer.root.mainloop()
